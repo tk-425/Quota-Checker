@@ -1,0 +1,56 @@
+{
+  "name": "quota-checker",
+  "displayName": "Quota Checker",
+  "description": "Display Antigravity quota in status bar and webview",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "quota-checker.openDashboard",
+        "title": "Open Quota Dashboard"
+      }
+    ],
+    "configuration": {
+      "title": "Quota Checker",
+      "properties": {
+        "quota-checker.statusBarModels": {
+          "type": "array",
+          "default": [
+            "claude",
+            "gemini"
+          ],
+          "description": "Model keywords to display in status bar (case-insensitive match)"
+        },
+        "quota-checker.pollingInterval": {
+          "type": "number",
+          "default": 30000,
+          "description": "Quota refresh interval in milliseconds"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.28.0",
+  "devDependencies": {
+    "@types/node": "^25.2.1",
+    "@types/vscode": "^1.109.0",
+    "typescript": "^5.9.3"
+  }
+}

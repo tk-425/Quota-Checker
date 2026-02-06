@@ -1,0 +1,40 @@
+# AI Agents
+.rulez/
+.claude/
+.agent/
+.codex/
+.gemini/
+.qwen/
+.mcp.json
+CLAUDE.md
+GEMINI.md
+QWEN.md
+AGENTS.md
+
+# codegraph
+.codegraph/
+
+# Node/Pnpm
+node_modules/
+dist/
+out/
+.pnpm-debug.log
+
+# VS Code Extension
+.vscode-test/
+.vs/
+*.vsix
+
+# Build output
+build/
+coverage/
+*.log
+.DS_Store
+
+# etc
+.base-code/
+.docs/
+
+# Lock files (pnpm only)
+package-lock.json
+yarn.lock
