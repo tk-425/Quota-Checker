@@ -297,7 +297,7 @@ export class ConnectClient {
           ? this.parseResetTime(resetTime)
           : undefined,
       },
-      isExhausted: remainingFraction === 0,
+      isExhausted: remainingFraction === 0 || remainingFraction === undefined,
     };
   }
 
