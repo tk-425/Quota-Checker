@@ -530,9 +530,9 @@ export function getWebviewContent(
           <div class="account-section">
             <div class="account-header">
               <span class="email">📧 ${escapeHtml(email)}</span>
-              <span class="last-updated">Last updated: ${formatTimeAgo(account.lastUpdated)}</span>
             </div>
             ${storedModelsHtml}
+            <div class="last-updated">Last updated: ${formatTimeAgo(account.lastUpdated)}</div>
           </div>
         `;
       })
