@@ -2,6 +2,10 @@
   "name": "quota-checker",
   "displayName": "Quota Checker",
   "description": "Display Antigravity quota in status bar and webview",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tk-425/Quota-Checker.git"
+  },
   "icon": "images/icon.png",
   "publisher": "wtk49",
   "version": "1.0.1",
