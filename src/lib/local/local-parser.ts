@@ -75,12 +75,15 @@ function parseModelQuota(
   model: NonNullable<NonNullable<ConnectUserStatus['quota']>['models']>[number]
 ): ModelQuotaInfo {
   const quota = model.quota;
+  const pct = quota?.remainingPercentage;
+  // A model is exhausted if explicitly flagged OR percentage is 0
+  const isExhausted = model.isExhausted === true || pct === 0;
 
   return {
     label: model.label || model.displayName || model.modelId,
     modelId: model.modelId,
-    remainingPercentage: quota?.remainingPercentage,
-    isExhausted: model.isExhausted ?? quota?.remainingPercentage === 0,
+    remainingPercentage: pct,
+    isExhausted,
     resetTime: quota?.resetTime,
     timeUntilResetMs: quota?.timeUntilResetMs,
   };

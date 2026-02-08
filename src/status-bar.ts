@@ -49,9 +49,34 @@ export class StatusBarManager {
     }
 
     // Filter models based on selected checkboxes
-    const modelsToShow = snapshot.models.filter((m) =>
-      selectedModels.includes(m.modelId)
-    );
+    const modelsToShow = snapshot.models
+      .filter((m) => selectedModels.includes(m.modelId))
+      .sort((a, b) => {
+        // Sort by provider priority: Claude → Gemini → GPT → Other
+        const getPriority = (model: ModelQuotaInfo): number => {
+          const lower = model.label.toLowerCase();
+          if (
+            lower.includes('claude') ||
+            lower.includes('sonnet') ||
+            lower.includes('opus')
+          )
+            return 0;
+          if (
+            lower.includes('gemini') ||
+            lower.includes('flash') ||
+            lower.includes('pro')
+          )
+            return 1;
+          if (
+            lower.includes('gpt') ||
+            lower.includes('4o') ||
+            lower.includes('o1')
+          )
+            return 2;
+          return 3;
+        };
+        return getPriority(a) - getPriority(b);
+      });
 
     if (modelsToShow.length === 0) {
       this.statusBarItem.text = '$(dashboard) Quota: Select models';
@@ -61,15 +86,16 @@ export class StatusBarManager {
       this.statusBarItem.text = `$(dashboard) ${parts.join(' | ')}`;
 
       // Check for exhausted models (only selected ones) - show error
-      // Also treat undefined percentage with isExhausted as exhausted
+      // Use isExhausted flag OR remainingPercentage <= 0
       const exhausted = modelsToShow.some(
-        (m) => m.isExhausted || m.remainingPercentage === 0
+        (m) =>
+          m.isExhausted ||
+          (m.remainingPercentage !== undefined && m.remainingPercentage <= 0)
       );
       // Check for low quota (<= 20%) - show warning
-      // If exhausted, remainingPercentage might be undefined, treat as 0
       const lowQuota = modelsToShow.some((m) => {
-        const pct = m.isExhausted ? 0 : (m.remainingPercentage ?? 1);
-        return pct <= 0.2;
+        const pct = m.remainingPercentage ?? 1;
+        return pct > 0 && pct <= 0.2;
       });
 
       if (exhausted) {
@@ -90,8 +116,8 @@ export class StatusBarManager {
     const label = this.getShortLabel(model.label);
     const pct = model.remainingPercentage;
 
-    // If exhausted but no percentage, treat as 0%
-    if (model.isExhausted && pct === undefined) {
+    // Show 0% if exhausted OR percentage <= 0
+    if (model.isExhausted || (pct !== undefined && pct <= 0)) {
       return `${label} 0%`;
     }
 
