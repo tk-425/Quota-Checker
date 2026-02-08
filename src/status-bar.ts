@@ -11,6 +11,7 @@ export class StatusBarManager {
     );
     this.statusBarItem.command = 'quota-checker.openDashboard';
     this.statusBarItem.tooltip = 'Click to open Quota Dashboard';
+    this.statusBarItem.text = '$(sync~spin) Quota: Connecting...';
     this.statusBarItem.show();
   }
 
@@ -54,16 +55,30 @@ export class StatusBarManager {
 
     if (modelsToShow.length === 0) {
       this.statusBarItem.text = '$(dashboard) Quota: Select models';
+      this.statusBarItem.backgroundColor = undefined;
     } else {
       const parts = modelsToShow.map((m) => this.formatModel(m));
       this.statusBarItem.text = `$(dashboard) ${parts.join(' | ')}`;
-    }
 
-    // Check for exhausted models (only selected ones)
-    const exhausted = modelsToShow.some((m) => m.isExhausted);
-    this.statusBarItem.backgroundColor = exhausted
-      ? new vscode.ThemeColor('statusBarItem.errorBackground')
-      : undefined;
+      // Check for exhausted models (only selected ones) - show error
+      const exhausted = modelsToShow.some((m) => m.isExhausted);
+      // Check for low quota (<= 20%) - show warning
+      const lowQuota = modelsToShow.some(
+        (m) => (m.remainingPercentage ?? 1) <= 0.2
+      );
+
+      if (exhausted) {
+        this.statusBarItem.backgroundColor = new vscode.ThemeColor(
+          'statusBarItem.errorBackground'
+        );
+      } else if (lowQuota) {
+        this.statusBarItem.backgroundColor = new vscode.ThemeColor(
+          'statusBarItem.warningBackground'
+        );
+      } else {
+        this.statusBarItem.backgroundColor = undefined;
+      }
+    }
   }
 
   private formatModel(model: ModelQuotaInfo): string {
