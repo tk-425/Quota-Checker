@@ -21,7 +21,8 @@ export interface StoredModelQuota {
   modelId: string;
   remainingPercentage: number;
   isExhausted: boolean;
-  resetAt: number; // Absolute Unix timestamp (ms)
+  resetAt: number; // Absolute Unix timestamp (ms) - used when quota < 100%
+  frozenResetMs?: number; // Frozen remaining time (ms) - used when quota = 100%
 }
 
 /**
@@ -108,12 +109,16 @@ function toStoredModel(model: ModelQuotaInfo): StoredModelQuota {
     ? Date.now() + model.timeUntilResetMs
     : 0;
 
+  const pct = model.remainingPercentage ?? 0;
+
   return {
     label: model.label,
     modelId: model.modelId,
-    remainingPercentage: model.remainingPercentage ?? 0,
+    remainingPercentage: pct,
     isExhausted: model.isExhausted,
     resetAt,
+    // For 100% quota, store frozen time so it doesn't decay for non-local accounts
+    frozenResetMs: pct >= 1.0 ? model.timeUntilResetMs : undefined,
   };
 }
 
@@ -127,11 +132,26 @@ export async function upsertAccountQuota(
 ): Promise<void> {
   try {
     const store = await readQuotaStore();
+    const existingAccount = store[email];
 
     // Convert models array to record keyed by modelId
     const models: Record<string, StoredModelQuota> = {};
     for (const model of snapshot.models) {
-      models[model.modelId] = toStoredModel(model);
+      const stored = toStoredModel(model);
+
+      // If quota is 100% and we have existing data, preserve the old values
+      // This keeps the frozen display time stable for non-local accounts
+      if (
+        stored.remainingPercentage >= 1.0 &&
+        existingAccount?.models[model.modelId]
+      ) {
+        const existing = existingAccount.models[model.modelId];
+        if (existing.resetAt) stored.resetAt = existing.resetAt;
+        if (existing.frozenResetMs)
+          stored.frozenResetMs = existing.frozenResetMs;
+      }
+
+      models[model.modelId] = stored;
     }
 
     // Upsert the account

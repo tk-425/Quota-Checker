@@ -373,8 +373,26 @@ export function getWebviewContent(
     const pct = model.remainingPercentage ?? 0;
     const pctDisplay = Math.round(pct * 100);
     const colorClass = pct < 0.2 ? 'low' : pct < 0.5 ? 'medium' : 'high';
-    const resetInfo =
-      model.resetAt > 0 ? `Resets in ${formatResetTime(model.resetAt)}` : '';
+
+    // For 100% quota, use frozen time (doesn't decay)
+    // For < 100% quota, use resetAt with real-time calculation
+    let resetInfo = '';
+    if (model.frozenResetMs !== undefined && model.frozenResetMs > 0) {
+      // Frozen display - doesn't change
+      const days = Math.floor(model.frozenResetMs / (1000 * 60 * 60 * 24));
+      const hours = Math.floor(
+        (model.frozenResetMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)
+      );
+      const minutes = Math.floor(
+        (model.frozenResetMs % (1000 * 60 * 60)) / (1000 * 60)
+      );
+      resetInfo =
+        days > 0
+          ? `Resets in ${days}d ${hours}h ${minutes}m`
+          : `Resets in ${hours}h ${minutes}m`;
+    } else if (model.resetAt > 0) {
+      resetInfo = `Resets in ${formatResetTime(model.resetAt)}`;
+    }
 
     return `
       <div class="stored-model-card">
