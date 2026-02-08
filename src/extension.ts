@@ -50,8 +50,11 @@ export function activate(context: vscode.ExtensionContext) {
     }
   );
 
-  // Start startup retry loop (will transition to normal polling once connected)
-  startStartupRetry();
+  // Show "Starting..." first, then begin connection attempts after 3 seconds
+  statusBar.showStarting();
+  setTimeout(() => {
+    startStartupRetry();
+  }, 3000);
 
   context.subscriptions.push(openDashboard);
   context.subscriptions.push(statusBar);
