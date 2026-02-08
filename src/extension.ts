@@ -12,6 +12,7 @@ let startupRetryInterval: NodeJS.Timeout | undefined;
 let extensionContext: vscode.ExtensionContext;
 let isIntensiveMode = false;
 let isConnected = false;
+let isStartupRetrying = false;
 
 // Startup retry interval (5 seconds)
 const STARTUP_RETRY_MS = 5000;
@@ -81,6 +82,7 @@ function getSelectedModels(): string[] {
  */
 async function startStartupRetry() {
   info('Starting startup retry loop (5s interval)...');
+  isStartupRetrying = true;
   statusBar.showConnecting();
 
   // Initial attempt
@@ -90,11 +92,17 @@ async function startStartupRetry() {
     return;
   }
 
+  // Keep showing "Connecting" after initial failure
+  statusBar.showConnecting();
+
   // Start retry interval
   startupRetryInterval = setInterval(async () => {
     const success = await attemptConnection();
     if (success) {
       transitionToNormalPolling();
+    } else {
+      // Maintain "Connecting" state during retries
+      statusBar.showConnecting();
     }
   }, STARTUP_RETRY_MS);
 }
@@ -122,6 +130,7 @@ function transitionToNormalPolling() {
     clearInterval(startupRetryInterval);
     startupRetryInterval = undefined;
   }
+  isStartupRetrying = false;
 
   // Update UI with fetched data
   fetchQuota();
@@ -192,7 +201,10 @@ async function handleToggleModel(modelId: string, selected: boolean) {
   const err = quotaService.getLastError() ?? undefined;
   const storedAccounts = await getAllStoredAccounts();
 
-  statusBar.update(snapshot, updated, err);
+  // Skip status bar update during startup retry
+  if (!isStartupRetrying) {
+    statusBar.update(snapshot, updated, err);
+  }
   QuotaWebviewPanel.updateCurrent(
     snapshot,
     err,
@@ -216,8 +228,10 @@ async function fetchQuota() {
     // Load all stored accounts for webview
     const storedAccounts = await getAllStoredAccounts();
 
-    // Update UI
-    statusBar.update(snapshot, selectedModels);
+    // Update UI (skip status bar during startup retry)
+    if (!isStartupRetrying) {
+      statusBar.update(snapshot, selectedModels);
+    }
     QuotaWebviewPanel.updateCurrent(
       snapshot,
       undefined,
@@ -232,8 +246,10 @@ async function fetchQuota() {
     // Load stored accounts even on error
     const storedAccounts = await getAllStoredAccounts();
 
-    // Update UI with error
-    statusBar.update(null, selectedModels, e);
+    // Update UI with error (skip status bar during startup retry)
+    if (!isStartupRetrying) {
+      statusBar.update(null, selectedModels, e);
+    }
     QuotaWebviewPanel.updateCurrent(
       null,
       e,

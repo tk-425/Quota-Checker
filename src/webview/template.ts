@@ -26,8 +26,8 @@ export function getWebviewContent(
       background: var(--vscode-editorWidget-background);
       border: 1px solid var(--vscode-editorWidget-border);
       border-radius: 6px;
-      padding: 16px;
-      margin-bottom: 12px;
+      padding: 12px 16px;
+      margin-bottom: 4px;
     }
     .model-header {
       display: flex;
@@ -94,10 +94,10 @@ export function getWebviewContent(
     .reset-time {
       color: var(--vscode-descriptionForeground);
       font-size: 0.85em;
-      margin-top: 8px;
+      margin-top: 4px;
     }
     .model-group {
-      margin-bottom: 24px;
+      margin-bottom: 12px;
     }
     .group-header {
       font-size: 1.1em;
@@ -107,28 +107,42 @@ export function getWebviewContent(
       border-bottom: 1px solid var(--vscode-editorWidget-border);
       color: var(--vscode-foreground);
     }
-    .model-checkbox {
+    .status-bar-selection {
+      background: var(--vscode-editorWidget-background);
+      border: 1px solid var(--vscode-editorWidget-border);
+      border-radius: 6px;
+      padding: 12px 16px;
+      margin-bottom: 16px;
+    }
+    .status-bar-selection h3 {
+      font-size: 0.9em;
+      font-weight: 600;
+      margin: 0 0 10px 0;
+      color: var(--vscode-descriptionForeground);
+    }
+    .checkbox-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px 20px;
+    }
+    .checkbox-item {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
     }
-    .model-checkbox input {
-      width: 16px;
-      height: 16px;
+    .checkbox-item input {
+      width: 14px;
+      height: 14px;
       cursor: pointer;
     }
-    .model-checkbox label {
+    .checkbox-item label {
       font-size: 0.85em;
-      color: var(--vscode-descriptionForeground);
+      color: var(--vscode-foreground);
       cursor: pointer;
+      white-space: nowrap;
     }
     .model-footer {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-top: 10px;
-      padding-top: 10px;
-      border-top: 1px solid var(--vscode-editorWidget-border);
+      margin-top: 8px;
     }
     .user-info {
       color: var(--vscode-descriptionForeground);
@@ -192,8 +206,14 @@ export function getWebviewContent(
       border: 1px solid var(--vscode-editorWidget-border);
       border-radius: 6px;
       padding: 12px 16px;
-      margin-bottom: 8px;
+      margin-bottom: 4px;
       opacity: 0.85;
+    }
+    .accounts-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 16px;
+      max-width: 1100px;
     }
   `;
 
@@ -305,11 +325,6 @@ export function getWebviewContent(
       resetInfo = `Resets: ${escapeHtml(m.resetTime)}`;
     }
 
-    const isSelected = selectedModels
-      ? selectedModels.includes(m.modelId)
-      : false;
-    const checkboxId = `checkbox-${m.modelId.replace(/[^a-zA-Z0-9]/g, '-')}`;
-
     return `
       <div class="model-card">
         <div class="model-header">
@@ -319,14 +334,7 @@ export function getWebviewContent(
         <div class="progress-bar">
           <div class="progress-fill ${colorClass}" style="width: ${pctDisplay}%"></div>
         </div>
-        <div class="model-footer">
-          ${resetInfo ? `<span class="reset-time">${resetInfo}</span>` : '<span></span>'}
-          <div class="model-checkbox">
-            <input type="checkbox" id="${checkboxId}" ${isSelected ? 'checked' : ''} 
-                   onchange="toggleModel('${escapeHtml(m.modelId)}', this.checked)" />
-            <label for="${checkboxId}">Show in status bar</label>
-          </div>
-        </div>
+        ${resetInfo ? `<div class="reset-time">${resetInfo}</div>` : ''}
       </div>
     `;
   };
@@ -342,6 +350,72 @@ export function getWebviewContent(
     `
     )
     .join('');
+
+  // Render status bar model selection row (all models from local account)
+  const renderStatusBarSelection = (): string => {
+    const allModels = snapshot.models;
+    if (allModels.length === 0) return '';
+
+    // Define explicit order for checkboxes
+    const getCheckboxOrder = (label: string): number => {
+      const l = label.toLowerCase();
+      if (l.includes('sonnet') && l.includes('thinking')) return 2; // Sonnet T
+      if (l.includes('sonnet')) return 1; // Sonnet
+      if (l.includes('opus')) return 3; // Opus
+      if (l.includes('flash')) return 4; // Flash
+      if (l.includes('pro') && l.includes('low')) return 5; // Pro-L
+      if (l.includes('pro') && l.includes('thinking')) return 6; // Pro T
+      if (l.includes('pro')) return 7; // Pro
+      if (l.includes('gpt') || l.includes('4o')) return 8; // GPT
+      if (l.includes('o1')) return 9; // o1
+      return 100;
+    };
+
+    // Sort models by checkbox order
+    const sortedModels = [...allModels].sort(
+      (a, b) => getCheckboxOrder(a.label) - getCheckboxOrder(b.label)
+    );
+
+    const checkboxes = sortedModels
+      .map((m) => {
+        const isSelected = selectedModels
+          ? selectedModels.includes(m.modelId)
+          : false;
+        const checkboxId = `checkbox-${m.modelId.replace(/[^a-zA-Z0-9]/g, '-')}`;
+        const shortLabel = getShortLabel(m.label);
+
+        return `
+          <div class="checkbox-item">
+            <input type="checkbox" id="${checkboxId}" ${isSelected ? 'checked' : ''} 
+                   onchange="toggleModel('${escapeHtml(m.modelId)}', this.checked)" />
+            <label for="${checkboxId}">${escapeHtml(shortLabel)}</label>
+          </div>
+        `;
+      })
+      .join('');
+
+    return `
+      <div class="status-bar-selection">
+        <h3>Status Bar Models</h3>
+        <div class="checkbox-row">${checkboxes}</div>
+      </div>
+    `;
+  };
+
+  // Helper to get short model label for checkbox
+  const getShortLabel = (label: string): string => {
+    const l = label.toLowerCase();
+    if (l.includes('sonnet') && l.includes('thinking')) return 'Sonnet T';
+    if (l.includes('sonnet')) return 'Sonnet';
+    if (l.includes('opus')) return 'Opus';
+    if (l.includes('flash')) return 'Flash';
+    if (l.includes('pro') && l.includes('thinking')) return 'Pro T';
+    if (l.includes('pro') && l.includes('low')) return 'Pro-L';
+    if (l.includes('pro')) return 'Pro';
+    if (l.includes('4o') || l.includes('gpt')) return 'GPT';
+    if (l.includes('o1')) return 'o1';
+    return label.split(' ').slice(0, 2).join(' ');
+  };
 
   // Helper to format time ago
   const formatTimeAgo = (timestampMs: number): string => {
@@ -472,7 +546,7 @@ export function getWebviewContent(
       <div class="account-section">
         <div class="account-header">
           <span class="email">📧 ${snapshot.email ? escapeHtml(snapshot.email) : 'Local Account'}</span>
-          <span class="badge">Local</span>
+          <span class="last-updated">Local · Just now</span>
         </div>
         ${modelsHtml}
       </div>
@@ -481,7 +555,8 @@ export function getWebviewContent(
     // Stored accounts sections
     const storedSections = renderStoredAccounts();
 
-    return localSection + storedSections;
+    // Wrap all accounts in grid container
+    return `<div class="accounts-grid">${localSection}${storedSections}</div>`;
   };
 
   return `<!DOCTYPE html>
@@ -497,6 +572,7 @@ export function getWebviewContent(
           </button>
         </div>
       </h1>
+      ${renderStatusBarSelection()}
       ${accountsHTML()}
       <div class="timestamp">Last updated: ${snapshot.timestamp}</div>
       <script>
