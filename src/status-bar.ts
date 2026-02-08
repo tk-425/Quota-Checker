@@ -15,6 +15,14 @@ export class StatusBarManager {
   }
 
   /**
+   * Show "Connecting..." status during startup retry
+   */
+  showConnecting() {
+    this.statusBarItem.text = '$(sync~spin) Quota: Connecting...';
+    this.statusBarItem.backgroundColor = undefined;
+  }
+
+  /**
    * Update status bar with quota data
    * @param snapshot Quota snapshot
    * @param selectedModels Array of model IDs to display (from checkboxes)

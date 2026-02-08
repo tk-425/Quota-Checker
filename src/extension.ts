@@ -8,8 +8,13 @@ import { getOutputChannel, info, error } from './logger';
 let quotaService: QuotaService;
 let statusBar: StatusBarManager;
 let pollingInterval: NodeJS.Timeout | undefined;
+let startupRetryInterval: NodeJS.Timeout | undefined;
 let extensionContext: vscode.ExtensionContext;
 let isIntensiveMode = false;
+let isConnected = false;
+
+// Startup retry interval (5 seconds)
+const STARTUP_RETRY_MS = 5000;
 
 // State key for persisting selected models
 const SELECTED_MODELS_KEY = 'quota-checker.selectedModels';
@@ -44,16 +49,16 @@ export function activate(context: vscode.ExtensionContext) {
     }
   );
 
-  // Initial fetch
-  fetchQuota();
-
-  // Start polling (default 5 minutes)
-  startPolling();
+  // Start startup retry loop (will transition to normal polling once connected)
+  startStartupRetry();
 
   context.subscriptions.push(openDashboard);
   context.subscriptions.push(statusBar);
   context.subscriptions.push({
     dispose: () => {
+      if (startupRetryInterval) {
+        clearInterval(startupRetryInterval);
+      }
       if (pollingInterval) {
         clearInterval(pollingInterval);
       }
@@ -68,6 +73,62 @@ export function activate(context: vscode.ExtensionContext) {
  */
 function getSelectedModels(): string[] {
   return extensionContext.globalState.get<string[]>(SELECTED_MODELS_KEY, []);
+}
+
+/**
+ * Start the startup retry loop.
+ * Polls every 5 seconds until Antigravity is detected, then transitions to normal polling.
+ */
+async function startStartupRetry() {
+  info('Starting startup retry loop (5s interval)...');
+  statusBar.showConnecting();
+
+  // Initial attempt
+  const success = await attemptConnection();
+  if (success) {
+    transitionToNormalPolling();
+    return;
+  }
+
+  // Start retry interval
+  startupRetryInterval = setInterval(async () => {
+    const success = await attemptConnection();
+    if (success) {
+      transitionToNormalPolling();
+    }
+  }, STARTUP_RETRY_MS);
+}
+
+/**
+ * Attempt to connect to Antigravity. Returns true on success.
+ */
+async function attemptConnection(): Promise<boolean> {
+  try {
+    await quotaService.getQuota();
+    isConnected = true;
+    info('Successfully connected to Antigravity');
+    return true;
+  } catch {
+    // Still waiting for Antigravity
+    return false;
+  }
+}
+
+/**
+ * Transition from startup retry to normal polling.
+ */
+function transitionToNormalPolling() {
+  if (startupRetryInterval) {
+    clearInterval(startupRetryInterval);
+    startupRetryInterval = undefined;
+  }
+
+  // Update UI with fetched data
+  fetchQuota();
+
+  // Start normal polling
+  startPolling();
+  info('Transitioned to normal polling mode');
 }
 
 /**
