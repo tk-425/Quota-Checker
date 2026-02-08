@@ -1,8 +1,10 @@
 import * as vscode from 'vscode';
 import type { QuotaSnapshot } from '../lib/quota/types';
+import type { QuotaStore } from '../storage/quota-storage';
 import { getWebviewContent } from './template';
 
 export type ToggleModelCallback = (modelId: string, selected: boolean) => void;
+export type SetIntervalCallback = (intensive: boolean) => void;
 
 export class QuotaWebviewPanel {
   private static currentPanel: QuotaWebviewPanel | undefined;
@@ -10,17 +12,22 @@ export class QuotaWebviewPanel {
   private snapshot: QuotaSnapshot | null = null;
   private error: Error | undefined;
   private selectedModels: string[] = [];
+  private isIntensiveMode = false;
+  private storedAccounts: QuotaStore = {};
   private onRefreshRequest: () => void;
   private onToggleModel: ToggleModelCallback;
+  private onSetInterval: SetIntervalCallback;
 
   private constructor(
     panel: vscode.WebviewPanel,
     onRefreshRequest: () => void,
-    onToggleModel: ToggleModelCallback
+    onToggleModel: ToggleModelCallback,
+    onSetInterval: SetIntervalCallback
   ) {
     this.panel = panel;
     this.onRefreshRequest = onRefreshRequest;
     this.onToggleModel = onToggleModel;
+    this.onSetInterval = onSetInterval;
 
     // Handle messages from webview
     this.panel.webview.onDidReceiveMessage((message) => {
@@ -28,6 +35,8 @@ export class QuotaWebviewPanel {
         this.onRefreshRequest();
       } else if (message.command === 'toggleModel') {
         this.onToggleModel(message.modelId, message.selected);
+      } else if (message.command === 'setInterval') {
+        this.onSetInterval(message.intensive);
       }
     });
 
@@ -40,7 +49,8 @@ export class QuotaWebviewPanel {
   static createOrShow(
     extensionUri: vscode.Uri,
     onRefreshRequest: () => void,
-    onToggleModel: ToggleModelCallback
+    onToggleModel: ToggleModelCallback,
+    onSetInterval: SetIntervalCallback
   ): QuotaWebviewPanel {
     const column = vscode.ViewColumn.Beside;
 
@@ -64,7 +74,8 @@ export class QuotaWebviewPanel {
     QuotaWebviewPanel.currentPanel = new QuotaWebviewPanel(
       panel,
       onRefreshRequest,
-      onToggleModel
+      onToggleModel,
+      onSetInterval
     );
 
     return QuotaWebviewPanel.currentPanel;
@@ -73,17 +84,27 @@ export class QuotaWebviewPanel {
   update(
     snapshot: QuotaSnapshot | null,
     error?: Error,
-    selectedModels?: string[]
+    selectedModels?: string[],
+    isIntensiveMode?: boolean,
+    storedAccounts?: QuotaStore
   ) {
     this.snapshot = snapshot;
     this.error = error;
     if (selectedModels !== undefined) {
       this.selectedModels = selectedModels;
     }
+    if (isIntensiveMode !== undefined) {
+      this.isIntensiveMode = isIntensiveMode;
+    }
+    if (storedAccounts !== undefined) {
+      this.storedAccounts = storedAccounts;
+    }
     this.panel.webview.html = getWebviewContent(
       snapshot,
       error,
-      this.selectedModels
+      this.selectedModels,
+      this.isIntensiveMode,
+      this.storedAccounts
     );
   }
 
@@ -94,10 +115,18 @@ export class QuotaWebviewPanel {
   static updateCurrent(
     snapshot: QuotaSnapshot | null,
     error?: Error,
-    selectedModels?: string[]
+    selectedModels?: string[],
+    isIntensiveMode?: boolean,
+    storedAccounts?: QuotaStore
   ) {
     if (QuotaWebviewPanel.currentPanel) {
-      QuotaWebviewPanel.currentPanel.update(snapshot, error, selectedModels);
+      QuotaWebviewPanel.currentPanel.update(
+        snapshot,
+        error,
+        selectedModels,
+        isIntensiveMode,
+        storedAccounts
+      );
     }
   }
 }
