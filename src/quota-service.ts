@@ -4,6 +4,7 @@ import { probeForConnectAPI } from './lib/local/port-prober';
 import { ConnectClient } from './lib/local/connect-client';
 import { parseLocalQuotaSnapshot } from './lib/local/local-parser';
 import type { QuotaSnapshot } from './lib/quota/types';
+import { upsertAccountQuota } from './storage/quota-storage';
 import { debug, error } from './logger';
 
 export class QuotaService {
@@ -47,6 +48,11 @@ export class QuotaService {
 
       // Step 5: Parse to QuotaSnapshot
       const snapshot = parseLocalQuotaSnapshot(userStatus);
+
+      // Step 6: Persist to global storage
+      if (snapshot.email) {
+        await upsertAccountQuota(snapshot.email, snapshot);
+      }
 
       this.cachedSnapshot = snapshot;
       this.lastError = null;

@@ -1,9 +1,12 @@
-import type { QuotaSnapshot } from '../lib/quota/types';
+import type { QuotaSnapshot, ModelQuotaInfo } from '../lib/quota/types';
+import type { QuotaStore, StoredModelQuota } from '../storage/quota-storage';
 
 export function getWebviewContent(
   snapshot: QuotaSnapshot | null,
   error?: Error,
-  selectedModels?: string[]
+  selectedModels?: string[],
+  isIntensiveMode?: boolean,
+  storedAccounts?: QuotaStore
 ): string {
   const styles = `
     body { 
@@ -57,6 +60,25 @@ export function getWebviewContent(
     }
     .refresh-btn:hover {
       background: var(--vscode-button-hoverBackground);
+    }
+    .interval-btn {
+      background: var(--vscode-button-secondaryBackground);
+      color: var(--vscode-button-secondaryForeground);
+      border: none;
+      padding: 8px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .interval-btn:hover {
+      background: var(--vscode-button-secondaryHoverBackground);
+    }
+    .interval-btn.active {
+      background: var(--vscode-button-background);
+      color: var(--vscode-button-foreground);
+    }
+    .header-controls {
+      display: flex;
+      gap: 8px;
     }
     .error {
       color: var(--vscode-errorForeground);
@@ -134,6 +156,44 @@ export function getWebviewContent(
     .account-email {
       font-size: 1.2em;
       color: var(--vscode-descriptionForeground);
+    }
+    .account-section {
+      margin-bottom: 32px;
+      padding: 16px;
+      background: var(--vscode-editorWidget-background);
+      border: 1px solid var(--vscode-editorWidget-border);
+      border-radius: 8px;
+    }
+    .account-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--vscode-editorWidget-border);
+    }
+    .account-header .email {
+      font-size: 1.1em;
+      font-weight: 600;
+    }
+    .account-header .badge {
+      font-size: 0.85em;
+      padding: 2px 8px;
+      border-radius: 4px;
+      background: var(--vscode-badge-background);
+      color: var(--vscode-badge-foreground);
+    }
+    .account-header .last-updated {
+      font-size: 0.85em;
+      color: var(--vscode-descriptionForeground);
+    }
+    .stored-model-card {
+      background: var(--vscode-editorWidget-background);
+      border: 1px solid var(--vscode-editorWidget-border);
+      border-radius: 6px;
+      padding: 12px 16px;
+      margin-bottom: 8px;
+      opacity: 0.85;
     }
   `;
 
@@ -230,11 +290,17 @@ export function getWebviewContent(
     // Format reset time
     let resetInfo = '';
     if (m.timeUntilResetMs !== undefined && m.timeUntilResetMs > 0) {
-      const hours = Math.floor(m.timeUntilResetMs / (1000 * 60 * 60));
+      const days = Math.floor(m.timeUntilResetMs / (1000 * 60 * 60 * 24));
+      const hours = Math.floor(
+        (m.timeUntilResetMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)
+      );
       const minutes = Math.floor(
         (m.timeUntilResetMs % (1000 * 60 * 60)) / (1000 * 60)
       );
-      resetInfo = `Resets in ${hours}h ${minutes}m`;
+      resetInfo =
+        days > 0
+          ? `Resets in ${days}d ${hours}h ${minutes}m`
+          : `Resets in ${hours}h ${minutes}m`;
     } else if (m.resetTime) {
       resetInfo = `Resets: ${escapeHtml(m.resetTime)}`;
     }
@@ -277,11 +343,127 @@ export function getWebviewContent(
     )
     .join('');
 
-  const accountsHTML = () => {
+  // Helper to format time ago
+  const formatTimeAgo = (timestampMs: number): string => {
+    const agoMs = Date.now() - timestampMs;
+    const minutes = Math.floor(agoMs / (1000 * 60));
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+    if (days > 0) return `${days}d ${hours % 24}h ago`;
+    if (hours > 0) return `${hours}h ${minutes % 60}m ago`;
+    return `${minutes}m ago`;
+  };
+
+  // Helper to format reset time from absolute timestamp
+  const formatResetTime = (resetAt: number): string => {
+    const msUntilReset = resetAt - Date.now();
+    if (msUntilReset <= 0) return 'Expired';
+    const days = Math.floor(msUntilReset / (1000 * 60 * 60 * 24));
+    const hours = Math.floor(
+      (msUntilReset % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)
+    );
+    const minutes = Math.floor((msUntilReset % (1000 * 60 * 60)) / (1000 * 60));
+    return days > 0
+      ? `${days}d ${hours}h ${minutes}m`
+      : `${hours}h ${minutes}m`;
+  };
+
+  // Render stored model card (no checkbox)
+  const renderStoredModelCard = (model: StoredModelQuota) => {
+    const pct = model.remainingPercentage ?? 0;
+    const pctDisplay = Math.round(pct * 100);
+    const colorClass = pct < 0.2 ? 'low' : pct < 0.5 ? 'medium' : 'high';
+    const resetInfo =
+      model.resetAt > 0 ? `Resets in ${formatResetTime(model.resetAt)}` : '';
+
     return `
-      ${snapshot.email ? `<div class="account-email">${escapeHtml(snapshot.email)}</div>` : ''}
-      ${modelsHtml}
+      <div class="stored-model-card">
+        <div class="model-header">
+          <span class="model-name">${escapeHtml(model.label)}</span>
+          <span class="model-pct">${pctDisplay}% remaining</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill ${colorClass}" style="width: ${pctDisplay}%"></div>
+        </div>
+        ${resetInfo ? `<div class="reset-time">${resetInfo}</div>` : ''}
+      </div>
     `;
+  };
+
+  // Render stored accounts (non-local)
+  const renderStoredAccounts = (): string => {
+    if (!storedAccounts) return '';
+
+    // Get emails of stored accounts, excluding current local email
+    const otherEmails = Object.keys(storedAccounts).filter(
+      (email) => email !== snapshot.email
+    );
+
+    if (otherEmails.length === 0) return '';
+
+    return otherEmails
+      .map((email) => {
+        const account = storedAccounts[email];
+        const modelsArray = Object.values(account.models);
+
+        // Group stored models by provider (same logic as main models)
+        const storedGroups: Record<string, StoredModelQuota[]> = {
+          Claude: [],
+          Gemini: [],
+          GPT: [],
+          Other: [],
+        };
+
+        modelsArray.forEach((m) => {
+          const label = m.label.toLowerCase();
+          if (label.includes('claude')) storedGroups.Claude.push(m);
+          else if (label.includes('gemini')) storedGroups.Gemini.push(m);
+          else if (label.includes('gpt') || label.includes('openai'))
+            storedGroups.GPT.push(m);
+          else storedGroups.Other.push(m);
+        });
+
+        const storedModelsHtml = Object.entries(storedGroups)
+          .filter(([, models]) => models.length > 0)
+          .map(
+            ([groupName, models]) => `
+              <div class="model-group">
+                <h2 class="group-header">${groupName}</h2>
+                ${models.map(renderStoredModelCard).join('')}
+              </div>
+            `
+          )
+          .join('');
+
+        return `
+          <div class="account-section">
+            <div class="account-header">
+              <span class="email">📧 ${escapeHtml(email)}</span>
+              <span class="last-updated">Last updated: ${formatTimeAgo(account.lastUpdated)}</span>
+            </div>
+            ${storedModelsHtml}
+          </div>
+        `;
+      })
+      .join('');
+  };
+
+  const accountsHTML = () => {
+    // Local account section
+    const localSection = `
+      <div class="account-section">
+        <div class="account-header">
+          <span class="email">📧 ${snapshot.email ? escapeHtml(snapshot.email) : 'Local Account'}</span>
+          <span class="badge">Local</span>
+        </div>
+        ${modelsHtml}
+      </div>
+    `;
+
+    // Stored accounts sections
+    const storedSections = renderStoredAccounts();
+
+    return localSection + storedSections;
   };
 
   return `<!DOCTYPE html>
@@ -290,7 +472,12 @@ export function getWebviewContent(
     <body>
       <h1>
         Quota Dashboard
-        <button class="refresh-btn" onclick="refresh()">↻ Refresh</button>
+        <div class="header-controls">
+          <button class="refresh-btn" onclick="refresh()">↻ Refresh</button>
+          <button class="interval-btn ${isIntensiveMode ? 'active' : ''}" onclick="toggleInterval()">
+            ${isIntensiveMode ? '🔋 Normal (5m)' : '⚡ Intensive (60s)'}
+          </button>
+        </div>
       </h1>
       ${accountsHTML()}
       <div class="timestamp">Last updated: ${snapshot.timestamp}</div>
@@ -299,6 +486,9 @@ export function getWebviewContent(
         function refresh() { vscode.postMessage({ command: 'refresh' }); }
         function toggleModel(modelId, selected) { 
           vscode.postMessage({ command: 'toggleModel', modelId, selected }); 
+        }
+        function toggleInterval() {
+          vscode.postMessage({ command: 'setInterval', intensive: ${!isIntensiveMode} });
         }
       </script>
     </body>
