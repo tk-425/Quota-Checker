@@ -3,7 +3,7 @@
   "displayName": "Quota Checker",
   "description": "Display Antigravity quota in status bar and webview",
   "publisher": "wtk49",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "engines": {
     "vscode": "^1.85.0"
   },

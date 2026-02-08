@@ -16,6 +16,14 @@ export class StatusBarManager {
   }
 
   /**
+   * Show "Starting..." status during initial startup phase
+   */
+  showStarting() {
+    this.statusBarItem.text = '$(loading~spin) Quota: Starting...';
+    this.statusBarItem.backgroundColor = undefined;
+  }
+
+  /**
    * Show "Connecting..." status during startup retry
    */
   showConnecting() {
