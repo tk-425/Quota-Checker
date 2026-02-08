@@ -35,7 +35,10 @@ export function getWebviewContent(
       margin-bottom: 8px;
     }
     .model-name { font-weight: bold; }
-    .model-pct { color: var(--vscode-descriptionForeground); }
+    .model-pct { 
+      color: var(--vscode-descriptionForeground); 
+      font-size: 0.85em;
+    }
     .progress-bar {
       height: 8px;
       background: var(--vscode-progressBar-background);
