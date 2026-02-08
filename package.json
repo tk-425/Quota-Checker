@@ -2,6 +2,7 @@
   "name": "quota-checker",
   "displayName": "Quota Checker",
   "description": "Display Antigravity quota in status bar and webview",
+  "icon": "images/icon.png",
   "publisher": "wtk49",
   "version": "1.0.1",
   "engines": {
