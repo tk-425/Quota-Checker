@@ -281,9 +281,9 @@ export function getWebviewContent(
     }
 
     if (group === 'Gemini') {
-      if (l.includes('pro') && l.includes('thinking')) return 30;
-      if (l.includes('pro') && l.includes('low')) return 20;
       if (l.includes('flash')) return 10;
+      if (l.includes('pro') && l.includes('low')) return 20;
+      if (l.includes('pro') && l.includes('high')) return 30;
       return 100;
     }
 
@@ -303,6 +303,11 @@ export function getWebviewContent(
         getModelWeight(a.label, groupName) - getModelWeight(b.label, groupName)
     );
   });
+
+  // Helper to strip provider prefix from model labels
+  const stripProviderPrefix = (label: string): string => {
+    return label.replace(/^Claude\s+/i, '').replace(/^Gemini\s+/i, '');
+  };
 
   const renderModelCard = (m: (typeof snapshot.models)[0]) => {
     const pct = m.remainingPercentage ?? 0;
@@ -330,7 +335,7 @@ export function getWebviewContent(
     return `
       <div class="model-card">
         <div class="model-header">
-          <span class="model-name">${escapeHtml(m.label)}</span>
+          <span class="model-name">${escapeHtml(stripProviderPrefix(m.label))}</span>
           <span class="model-pct">${pctDisplay}% remaining</span>
         </div>
         <div class="progress-bar">
@@ -473,7 +478,7 @@ export function getWebviewContent(
     return `
       <div class="stored-model-card">
         <div class="model-header">
-          <span class="model-name">${escapeHtml(model.label)}</span>
+          <span class="model-name">${escapeHtml(stripProviderPrefix(model.label))}</span>
           <span class="model-pct">${pctDisplay}% remaining</span>
         </div>
         <div class="progress-bar">
@@ -515,6 +520,15 @@ export function getWebviewContent(
           else if (label.includes('gpt') || label.includes('openai'))
             storedGroups.GPT.push(m);
           else storedGroups.Other.push(m);
+        });
+
+        // Sort each stored group using the same weight logic
+        Object.entries(storedGroups).forEach(([groupName, models]) => {
+          models.sort(
+            (a, b) =>
+              getModelWeight(a.label, groupName) -
+              getModelWeight(b.label, groupName)
+          );
         });
 
         const storedModelsHtml = Object.entries(storedGroups)
