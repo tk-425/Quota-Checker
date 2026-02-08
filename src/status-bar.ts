@@ -61,11 +61,16 @@ export class StatusBarManager {
       this.statusBarItem.text = `$(dashboard) ${parts.join(' | ')}`;
 
       // Check for exhausted models (only selected ones) - show error
-      const exhausted = modelsToShow.some((m) => m.isExhausted);
-      // Check for low quota (<= 20%) - show warning
-      const lowQuota = modelsToShow.some(
-        (m) => (m.remainingPercentage ?? 1) <= 0.2
+      // Also treat undefined percentage with isExhausted as exhausted
+      const exhausted = modelsToShow.some(
+        (m) => m.isExhausted || m.remainingPercentage === 0
       );
+      // Check for low quota (<= 20%) - show warning
+      // If exhausted, remainingPercentage might be undefined, treat as 0
+      const lowQuota = modelsToShow.some((m) => {
+        const pct = m.isExhausted ? 0 : (m.remainingPercentage ?? 1);
+        return pct <= 0.2;
+      });
 
       if (exhausted) {
         this.statusBarItem.backgroundColor = new vscode.ThemeColor(
@@ -84,6 +89,11 @@ export class StatusBarManager {
   private formatModel(model: ModelQuotaInfo): string {
     const label = this.getShortLabel(model.label);
     const pct = model.remainingPercentage;
+
+    // If exhausted but no percentage, treat as 0%
+    if (model.isExhausted && pct === undefined) {
+      return `${label} 0%`;
+    }
 
     if (pct === undefined) {
       return `${label}: --`;
