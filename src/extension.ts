@@ -128,15 +128,29 @@ async function attemptConnection(): Promise<boolean> {
 /**
  * Transition from startup retry to normal polling.
  */
-function transitionToNormalPolling() {
+async function transitionToNormalPolling() {
   if (startupRetryInterval) {
     clearInterval(startupRetryInterval);
     startupRetryInterval = undefined;
   }
   isStartupRetrying = false;
 
-  // Update UI with fetched data
-  fetchQuota();
+  // Update UI with already-fetched data (from successful attemptConnection)
+  const snapshot = quotaService.getCached();
+  const selectedModels = getSelectedModels();
+  const storedAccounts = await getAllStoredAccounts();
+
+  // Update status bar and webview with cached data
+  if (snapshot) {
+    statusBar.update(snapshot, selectedModels);
+    QuotaWebviewPanel.updateCurrent(
+      snapshot,
+      undefined,
+      selectedModels,
+      isIntensiveMode,
+      storedAccounts
+    );
+  }
 
   // Start normal polling
   startPolling();

@@ -6,7 +6,8 @@ export function getWebviewContent(
   error?: Error,
   selectedModels?: string[],
   isIntensiveMode?: boolean,
-  storedAccounts?: QuotaStore
+  storedAccounts?: QuotaStore,
+  version?: string
 ): string {
   const styles = `
     body { 
@@ -591,6 +592,7 @@ export function getWebviewContent(
       ${renderStatusBarSelection()}
       ${accountsHTML()}
       <div class="timestamp">Last updated: ${snapshot.timestamp}</div>
+      ${version ? `<div class="timestamp">version ${escapeHtml(version)}</div>` : ''}
       <script>
         const vscode = acquireVsCodeApi();
         function refresh() { vscode.postMessage({ command: 'refresh' }); }

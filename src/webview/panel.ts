@@ -18,8 +18,11 @@ export class QuotaWebviewPanel {
   private onToggleModel: ToggleModelCallback;
   private onSetInterval: SetIntervalCallback;
 
+  private version: string;
+
   private constructor(
     panel: vscode.WebviewPanel,
+    extensionUri: vscode.Uri,
     onRefreshRequest: () => void,
     onToggleModel: ToggleModelCallback,
     onSetInterval: SetIntervalCallback
@@ -28,6 +31,12 @@ export class QuotaWebviewPanel {
     this.onRefreshRequest = onRefreshRequest;
     this.onToggleModel = onToggleModel;
     this.onSetInterval = onSetInterval;
+
+    // Read version from package.json
+    const packageJson = require(
+      vscode.Uri.joinPath(extensionUri, 'package.json').fsPath
+    );
+    this.version = packageJson.version || 'unknown';
 
     // Handle messages from webview
     this.panel.webview.onDidReceiveMessage((message) => {
@@ -73,6 +82,7 @@ export class QuotaWebviewPanel {
 
     QuotaWebviewPanel.currentPanel = new QuotaWebviewPanel(
       panel,
+      extensionUri,
       onRefreshRequest,
       onToggleModel,
       onSetInterval
@@ -104,7 +114,8 @@ export class QuotaWebviewPanel {
       error,
       this.selectedModels,
       this.isIntensiveMode,
-      this.storedAccounts
+      this.storedAccounts,
+      this.version
     );
   }
 
