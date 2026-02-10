@@ -452,13 +452,11 @@ export function getWebviewContent(
 
   // Render stored model card (no checkbox)
   const renderStoredModelCard = (model: StoredModelQuota) => {
-    const pct = model.remainingPercentage ?? 0;
-    const pctDisplay = Math.round(pct * 100);
-    const colorClass = pct < 0.2 ? 'low' : pct < 0.5 ? 'medium' : 'high';
+    let pct = model.remainingPercentage ?? 0;
+    let resetInfo = '';
 
     // For 100% quota, use frozen time (doesn't decay)
     // For < 100% quota, use resetAt with real-time calculation
-    let resetInfo = '';
     if (model.frozenResetMs !== undefined && model.frozenResetMs > 0) {
       // Frozen display - doesn't change
       const days = Math.floor(model.frozenResetMs / (1000 * 60 * 60 * 24));
@@ -473,8 +471,29 @@ export function getWebviewContent(
           ? `Resets in ${days}d ${hours}h ${minutes}m`
           : `Resets in ${hours}h ${minutes}m`;
     } else if (model.resetAt > 0) {
-      resetInfo = `Resets in ${formatResetTime(model.resetAt)}`;
+      const msUntilReset = model.resetAt - Date.now();
+
+      // If reset time has passed, assume quota has reset to 100%
+      // and calculate next reset cycle (5 hours from original resetAt)
+      if (msUntilReset <= 0) {
+        pct = 1.0; // Quota has reset to 100%
+
+        // Calculate next reset: keep adding 5-hour cycles until we're in the future
+        const RESET_CYCLE_MS = 5 * 60 * 60 * 1000; // 5 hours
+        let nextResetAt = model.resetAt;
+        while (nextResetAt <= Date.now()) {
+          nextResetAt += RESET_CYCLE_MS;
+        }
+
+        resetInfo = `Resets in ${formatResetTime(nextResetAt)}`;
+      } else {
+        // Normal case: reset time hasn't passed yet
+        resetInfo = `Resets in ${formatResetTime(model.resetAt)}`;
+      }
     }
+
+    const pctDisplay = Math.round(pct * 100);
+    const colorClass = pct < 0.2 ? 'low' : pct < 0.5 ? 'medium' : 'high';
 
     return `
       <div class="stored-model-card">
